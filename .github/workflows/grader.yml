@@ -1,0 +1,45 @@
+name: stock-options-grader
+
+on:
+  schedule:
+    # Every 15 min, Mon-Fri, covers market hours in both EDT and EST.
+    # Script itself gates to 9:35-16:00 ET and skips holidays.
+    - cron: "*/15 13-21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stock-options-grader
+  cancel-in-progress: false
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run grader
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          # Manual runs bypass the market-hours gate (good for testing)
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '0' }}
+        run: python grader.py
+
+      - name: Commit state + logs
+        run: |
+          git config user.name "grader-bot"
+          git config user.email "grader-bot@users.noreply.github.com"
+          for f in state.json alerts_log.csv outcomes.csv outcomes_summary.md; do
+            [ -f "$f" ] && git add "$f"
+          done
+          git diff --cached --quiet || (git commit -m "grader: update state [skip ci]" && git pull --rebase && git push)
