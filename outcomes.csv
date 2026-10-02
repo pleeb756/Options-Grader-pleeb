@@ -1,0 +1,3 @@
+alert_id,symbol,direction,level,score,R,exit
+202609262212-NVDA-CALL,NVDA,CALL,NEAR,82,1.92,time
+202609262212-SOFI-PUT,SOFI,PUT,NEAR,75,0.92,time
