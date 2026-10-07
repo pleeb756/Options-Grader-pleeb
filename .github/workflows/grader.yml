@@ -1,10 +1,8 @@
 name: stock-options-grader
 
 on:
-  schedule:
-    # Every 15 min, Mon-Fri, covers market hours in both EDT and EST.
-    # Script itself gates to 9:35-16:00 ET and skips holidays.
-    - cron: "*/15 13-21 * * 1-5"
+  # Retired: the swing grader in pleeb756/Setup-grader-alerts- replaces this one.
+  # Manual runs still work (they also score any remaining logged alerts).
   workflow_dispatch:
 
 permissions:
