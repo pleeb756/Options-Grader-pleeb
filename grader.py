@@ -7,6 +7,7 @@ Stock Options A+ Setup Grader
 - Pushes green ntfy alerts; logs alerts + 5-session outcomes (R = ATR units)
 """
 import os, json, csv, math, time
+from concurrent.futures import ThreadPoolExecutor
 import datetime as dt
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -25,6 +26,7 @@ ALERT_MIN_SCORE = 85        # A+ (also requires trigger)
 NEAR_MIN_SCORE = 75         # nearing setup
 COOLDOWN_HOURS = 20
 MAX_CHAIN_LOOKUPS = 25      # cap option-chain calls per run
+UNIVERSE_DAYS = 7           # reuse a Robinhood universe this many days
 
 DTE_MIN, DTE_MAX, DTE_TARGET = 21, 45, 30
 TARGET_DELTA = 0.55
@@ -66,15 +68,18 @@ def robinhood_top100():
         r = requests.get("https://api.robinhood.com/midlands/tags/tag/100-most-popular/",
                          headers=UA, timeout=15)
         r.raise_for_status()
-        syms = []
+        urls = r.json().get("instruments", [])
         with requests.Session() as sess:
-            for url in r.json().get("instruments", []):
+            def lookup(url):
                 try:
                     inst = sess.get(url, headers=UA, timeout=10).json()
                     if inst.get("tradeable") and inst.get("symbol"):
-                        syms.append(inst["symbol"].replace(".", "-"))
+                        return inst["symbol"].replace(".", "-")
                 except Exception:
                     pass
+                return None
+            with ThreadPoolExecutor(max_workers=16) as ex:
+                syms = [s for s in ex.map(lookup, urls) if s]
         if len(syms) >= 50:
             return syms, "robinhood"
     except Exception as e:
@@ -83,8 +88,12 @@ def robinhood_top100():
 
 def get_universe(state, today):
     u = state.get("universe", {})
-    if u.get("date") == str(today) and u.get("symbols"):
-        return u["symbols"], u["source"]
+    if u.get("symbols") and u.get("date"):
+        age = (today - dt.date.fromisoformat(u["date"])).days
+        # Fallback list is only reused same-day so Robinhood is retried tomorrow
+        max_age = UNIVERSE_DAYS if u.get("source") == "robinhood" else 1
+        if 0 <= age < max_age:
+            return u["symbols"], u["source"]
     syms, src = robinhood_top100()
     state["universe"] = {"date": str(today), "source": src, "symbols": syms}
     print(f"Universe: {len(syms)} symbols from {src}")

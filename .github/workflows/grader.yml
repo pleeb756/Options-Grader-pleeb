@@ -17,16 +17,18 @@ concurrency:
 jobs:
   grade:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: ${{ inputs.backtest && 40 || 8 }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - run: pip install -r requirements.txt
+      - run: pip install --quiet --disable-pip-version-check -r requirements.txt
 
       - name: Run grader
         env:
